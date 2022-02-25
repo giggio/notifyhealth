@@ -5,7 +5,7 @@
 
 This app checks if a container is running and healthy or stopped (and shouldn't) and notifies accordingly.
 
-This can be run on Linux for AMD64 and ARMv7. Windows is coming.
+This can be run on Linux for AMD64 and ARMv7.
 
 ## Upstream Links
 
@@ -24,6 +24,12 @@ To run it only once and view the output directly in the terminal, run it like th
 
 ````bash
 docker run --name notifyhealth --rm -ti -v /var/run/docker.sock:/var/run/docker.sock giggio/notifyhealth --label <label> print
+````
+
+To run it on Windows:
+
+````powershell
+docker run --name notifyhealth --rm -ti -v \\.\pipe\docker_engine:\\.\pipe\docker_engine giggio/notifyhealth --label <label> print
 ````
 
 ### Detailed commands

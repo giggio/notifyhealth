@@ -1,0 +1,4 @@
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
+LABEL maintainer="giggio@giggio.net"
+ENTRYPOINT [ "c:/notifyhealth" ]
+COPY target/output/notifyhealth.exe .

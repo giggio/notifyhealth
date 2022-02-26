@@ -21,96 +21,179 @@ on:
     paths-ignore:
       - "**.md"
 
+env:
+  BINARY: notifyhealth
+  DOCKER_USERNAME: giggio
+
 jobs:
-  build_linux:
-    name: Build application (Linux)
+  get_data:
+    name: Gets data for next jobs
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      base_image: ${{ steps.set-variables.outputs.base_image }}
     steps:
       - uses: actions/checkout@v2
-      - uses: extractions/setup-just@v1
+      - name: Get current version
+        id: get-version
+        run: |
+          curl -fsSL --output ./stoml "https://github.com/freshautomations/stoml/releases/download/v0.7.0/stoml_linux_amd64"
+          chmod +x stoml
+          VERSION=`./stoml Cargo.toml package.version`
+          echo "::set-output name=version::$VERSION"
+      - name: Set nested variables
+        id: set-variables
+        run: |
+          echo "::set-output name=base_image::giggio/${{ env.BINARY }}"
+
+  build:
+    name: Build application
+    runs-on: ${{ matrix.runner }}
+    needs: [get_data]
+    strategy:
+      matrix:
+        tag: ["linux_amd64", "linux_arm32v7", "windows_amd64"]
+        include:
+          - tag: linux_amd64
+            target: x86_64-unknown-linux-musl
+            os: linux
+            runner: ubuntu-latest
+          - tag: linux_arm32v7
+            target: armv7-unknown-linux-musleabihf
+            os: linux
+            runner: ubuntu-latest
+          - tag: windows_amd64
+            target: x86_64-pc-windows-gnu
+            os: windows
+            runner: windows-2019
+    steps:
+      - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: x86_64-unknown-linux-musl
+          target: ${{ matrix.target }}
           override: true
           components: clippy, rustfmt
-      - name: Check format
-        run: cargo fmt --check
+      - uses: actions-rs/cargo@v1
+        name: Check format
+        with:
+          command: fmt
+          args: --all --check
+          use-cross: ${{ matrix.os == 'linux' }}
       - name: Check clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: Build Rust and docker image
-        if: success() && github.ref == 'refs/heads/main'
-        run: |
-          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-          cargo install cross toml-cli
-          just release_linux
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build Rust and build and push docker image
-        if: success() && github.ref != 'refs/heads/main'
-        run: |
-          cargo install cross toml-cli
-          just docker_build_linux
-      - run: docker logout || true
-        if: always()
-
-  build_windows:
-    name: Build application (Windows)
-    runs-on: windows-2019
-    steps:
-      - uses: actions/checkout@v2
-      - uses: extractions/setup-just@v1
-      - uses: actions-rs/toolchain@v1
+          use-cross: ${{ matrix.os == 'linux' }}
+      - uses: actions-rs/cargo@v1
+        name: Build app
         with:
-          toolchain: stable
-          target: x86_64-pc-windows-gnu
-          override: true
-          components: clippy, rustfmt
-      - name: Check format
-        run: cargo fmt --check
-      - name: Check clippy
-        uses: actions-rs/clippy-check@v1
+          command: build
+          args: --release --target ${{ matrix.target }}
+          use-cross: ${{ matrix.os == 'linux' }}
+      - uses: actions-rs/cargo@v1
+        name: Test app
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: Build Rust and docker image
+          command: test
+          args: --target ${{ matrix.target }}
+          use-cross: ${{ matrix.os == 'linux' }}
+      - name: Upload binaries
+        uses: actions/upload-artifact@v2
         if: success() && github.ref == 'refs/heads/main'
-        run: |
-          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-          just release_windows
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build Rust and build and push docker image
-        if: success() && github.ref != 'refs/heads/main'
-        run: |
-          cargo install cross toml-cli
-          just docker_build_windows
-      - run: docker logout
-        if: always()
+        with:
+          name: binaries-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ env.BINARY }}${{ matrix.os == 'windows' && '.exe' || '' }}
+          retention-days: 3
 
-  release_multiarch:
-    name: Release multiarch image
-    runs-on: ubuntu-latest
-    needs: [build_linux, build_windows]
+  publish:
+    name: Publish docker image
+    runs-on: ${{ matrix.runner }}
+    needs: [get_data, build]
     if: success() && github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        tag: ["linux_amd64", "linux_arm32v7", "windows_amd64"]
+        include:
+          - tag: linux_amd64
+            target: x86_64-unknown-linux-musl
+            platform: linux/amd64
+            os: linux
+            runner: ubuntu-latest
+          - tag: linux_arm32v7
+            target: armv7-unknown-linux-musleabihf
+            platform: linux/arm/v7
+            os: linux
+            runner: ubuntu-latest
+          - tag: windows_amd64
+            target: x86_64-pc-windows-gnu
+            platform: windows/amd64
+            os: windows
+            runner: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: extractions/setup-just@v1
-      - name: Release multiarch image to Docker hub
+      - name: Download binaries
+        uses: actions/download-artifact@v2
+        with:
+          name: binaries-${{ matrix.target }}
+          path: target/output
+      - run: chmod +x target/output/${{ env.BINARY }}
+        if: matrix.os == 'linux'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta_docker
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ needs.get_data.outputs.base_image }}
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=${{ needs.get_data.outputs.version }}-${{ matrix.tag }},enable=true
+            type=raw,value=${{ matrix.tag }},enable=true
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+        if: matrix.target == 'armv7-unknown-linux-musleabihf'
+      - name: Build and push docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ${{ matrix.os == 'windows' && 'Dockerfile.windows' || 'Dockerfile' }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta_docker.outputs.tags }}
+          labels: ${{ steps.meta_docker.outputs.labels }}
+
+  publish_multiarch:
+    name: Publish multiarch image
+    runs-on: ubuntu-latest
+    needs: [get_data, publish]
+    if: success() && github.ref == 'refs/heads/main'
+    env:
+      AMD64_TAG: linux_amd64
+      ARM32V7_TAG: linux_arm32v7
+      WIN64_TAG: windows_amd64
+    steps:
+      - uses: actions/checkout@v2
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Release multiarch image to Docker Hub
         run: |
-          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-          just release_with_docker_only
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      - run: docker logout || true
-        if: always()
+          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create ${{ needs.get_data.outputs.base_image }}:latest \
+              --amend ${{ needs.get_data.outputs.base_image }}:${{ env.AMD64_TAG }} \
+              --amend ${{ needs.get_data.outputs.base_image }}:${{ env.WIN64_TAG }} \
+              --amend ${{ needs.get_data.outputs.base_image }}:${{ env.ARM32V7_TAG }}
+          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push ${{ needs.get_data.outputs.base_image }}:latest
+          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }} \
+              --amend ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.AMD64_TAG }} \
+              --amend ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.WIN64_TAG }} \
+              --amend ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.ARM32V7_TAG }}
+          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}

@@ -1,4 +1,3 @@
-#![type_length_limit = "2097152"]
 #![warn(clippy::shadow_unrelated)]
 #[macro_use]
 mod macros;
@@ -10,22 +9,18 @@ use crate::{
 };
 use bollard::Docker;
 use containers::{check_not_running_containers, check_running_containers};
+use log::{Level, LevelFilter};
 mod containers;
-
-static mut VERBOSE: bool = false;
+#[macro_use]
+extern crate log;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::new();
-    match args.verbose.log_level() {
-        None => unsafe {
-            VERBOSE = false;
-        },
-        Some(_) => unsafe {
-            VERBOSE = true;
-        },
-    }
-    printlnv!("Args are {:?}.", args);
+    let level = to_level_filter(args.verbose.log_level());
+    env_logger::Builder::new().filter_level(level).init();
+    info!("Log level: {level}");
+    info!("Args are {:?}.", args);
     match &args.command {
         Command::Print {} => {
             let docker = Docker::connect_with_socket_defaults().unwrap();
@@ -39,4 +34,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::NotifyWebhook { .. } => println!("Not implemented."),
     }
     Ok(())
+}
+
+fn to_level_filter(level: Option<Level>) -> LevelFilter {
+    match level {
+        None => LevelFilter::Off,
+        Some(level) => match level {
+            Level::Error => LevelFilter::Error,
+            Level::Warn => LevelFilter::Warn,
+            Level::Info => LevelFilter::Info,
+            Level::Debug => LevelFilter::Debug,
+            Level::Trace => LevelFilter::Trace,
+        },
+    }
 }

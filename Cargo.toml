@@ -4,6 +4,16 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Giovanni Bassi <giggio@giggio.net>"]
 
+[lib]
+name = "notifyhealth"
+path = "src/lib/mod.rs"
+doctest = false
+test = false
+
+[[bin]]
+name = "notifyhealth"
+path = "src/main.rs"
+
 [profile.release]
 strip = true
 lto = true
@@ -20,7 +30,6 @@ isahc = { version = "1.6", features = ["json"] }
 itertools = "0.10"
 lazy_static = "1.4"
 log = "0.4"
-mockall_double = "0.2.1"
 reqwest = { version = "0.11", features = ["json"] }
 serde = "1.0"
 serde_json = "1.0"
@@ -28,4 +37,5 @@ tokio = { version = "1.17", features = ["full"] }
 
 [dev-dependencies]
 mockall = "0.11"
+mockito = "0.31"
 pretty_assertions = "1.1"

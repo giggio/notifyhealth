@@ -3,5 +3,8 @@
         "inpect",
         "shiplift"
     ],
-    "cSpell.enabled": false
+    "cSpell.enabled": false,
+    "files.exclude": {
+        "target": true
+    }
 }

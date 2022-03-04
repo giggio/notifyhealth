@@ -1,4 +1,4 @@
-use crate::containers::{RunningContainerStatus, StoppedContainerStatus};
+use super::containers::{RunningContainerStatus, StoppedContainerStatus};
 use isahc::{Body, Error, HttpClient, Request, Response};
 use lazy_static::lazy_static;
 #[cfg(test)]
@@ -49,8 +49,8 @@ impl Webhook {
             .header("content-type", "application/json")
             .body(serde_json::to_vec(&body)?)?;
         let res = self.http_client.send(req)?;
-        if res.status() != 200 {
-            return Err(format!("Error: status code: {status }", status = res.status()).into());
+        if !res.status().is_success() {
+            return Err(format!("Error: status code: {status}", status = res.status()).into());
         }
         Ok(())
     }

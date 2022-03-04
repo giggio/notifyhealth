@@ -6,6 +6,7 @@ use bollard::models::{ContainerInspectResponse, ContainerSummaryInner, HealthSta
 use futures_util::Future;
 #[cfg(test)]
 use mockall::automock;
+use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
 use bollard::Docker;
@@ -84,22 +85,24 @@ pub async fn check_running_containers(
     .await)
 }
 
-#[derive(Debug, PartialEq)]
-pub struct ContainerStatus {
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct StoppedContainerStatus {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RunningContainerStatus {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub health: Option<HealthStatusEnum>,
 }
 
 pub async fn check_not_running_containers(
     docker: &dyn HasContainers,
     label: &str,
-) -> Result<Vec<ContainerStatus>, Box<dyn std::error::Error>> {
+) -> Result<Vec<StoppedContainerStatus>, Box<dyn std::error::Error>> {
     let filter = hashmap!["status" => vec!["created", "paused", "restarting", "removing", "exited", "dead"], "label" => vec![label]];
     let containers = docker
         .list_containers(Some(ListContainersOptions {
@@ -110,7 +113,7 @@ pub async fn check_not_running_containers(
         .await?;
     Ok(containers
         .into_iter()
-        .map(|container| ContainerStatus {
+        .map(|container| StoppedContainerStatus {
             name: get_container_name(&container).to_string(),
             status: container.state,
         })
@@ -262,7 +265,7 @@ mod tests {
         let stopped_containers = stopped_containers_result.unwrap();
         assert_eq!(
             stopped_containers,
-            vec![ContainerStatus {
+            vec![StoppedContainerStatus {
                 name: "test_container".to_string(),
                 status: Some("stopped".to_string())
             }]

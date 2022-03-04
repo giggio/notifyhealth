@@ -1,7 +1,7 @@
 use bollard::models::HealthStatusEnum;
 use itertools::Itertools;
 
-use crate::containers::{ContainerStatus, RunningContainerStatus};
+use crate::containers::{RunningContainerStatus, StoppedContainerStatus};
 
 pub fn running_containers(running_containers: Vec<RunningContainerStatus>) {
     if running_containers.is_empty() {
@@ -33,7 +33,7 @@ pub fn running_containers(running_containers: Vec<RunningContainerStatus>) {
     }
 }
 
-pub fn stopped_containers(stopped_containers: Vec<ContainerStatus>) {
+pub fn stopped_containers(stopped_containers: Vec<StoppedContainerStatus>) {
     if stopped_containers.is_empty() {
         println!("No container that was supposed to be running is stopped.");
     } else {

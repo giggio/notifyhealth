@@ -3,9 +3,11 @@
 mod macros;
 mod args;
 mod print;
+mod webhook;
 use crate::{
     args::{Args, Command},
     containers::Containers,
+    webhook::Webhook,
 };
 use bollard::Docker;
 use containers::{check_not_running_containers, check_running_containers};
@@ -31,7 +33,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             print::stopped_containers(stopped_containers);
         }
         Command::NotifyTeams { .. } => println!("Not implemented."),
-        Command::NotifyWebhook { .. } => println!("Not implemented."),
+        Command::NotifyWebhook { callback_url } => {
+            let docker = Docker::connect_with_socket_defaults().unwrap();
+            let containers = Containers::new(docker);
+            let running_containers = check_running_containers(&containers).await?;
+            let stopped_containers = check_not_running_containers(&containers, &args.label).await?;
+            Webhook::shared().notify(callback_url, running_containers, stopped_containers)?;
+        }
     }
     Ok(())
 }

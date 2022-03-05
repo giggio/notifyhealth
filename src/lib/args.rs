@@ -10,6 +10,10 @@ pub struct Args {
         required = true
     )]
     pub label: String,
+    #[clap(short, long, help = "Host name of docker host")]
+    pub hostname: Option<String>,
+    #[clap(short, long, help = "Include running containers which have no health check")]
+    pub report_no_health: bool,
 
     #[clap(subcommand)]
     pub command: Command,

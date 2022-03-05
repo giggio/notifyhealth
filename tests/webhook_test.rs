@@ -21,6 +21,8 @@ async fn check_webhook_notify() {
         .match_header("content-type", "application/json")
         .with_status(201)
         .create();
-    webhook.notify(url, running_containers, stopped_containers).unwrap();
+    webhook
+        .notify(url, running_containers, stopped_containers, None)
+        .unwrap();
     mock.assert();
 }

@@ -59,8 +59,13 @@ impl HasContainers for Containers {
 
 pub async fn check_running_containers(
     docker: &dyn HasContainers,
+    report_no_health: bool,
 ) -> Result<Vec<RunningContainerStatus>, Box<dyn std::error::Error>> {
-    let filter = hashmap!["status" => vec!["running"], "health" => vec!["unhealthy", "starting", "none"]];
+    let mut health_filter = vec!["unhealthy", "starting"];
+    if report_no_health {
+        health_filter.push("none");
+    }
+    let filter = hashmap!["status" => vec!["running"], "health" => health_filter];
     let containers = docker
         .list_containers(Some(ListContainersOptions {
             all: true,
@@ -209,7 +214,7 @@ mod tests {
                     ..Default::default()
                 })
             });
-        let running_containers_result = check_running_containers(&has_containers_mock).await;
+        let running_containers_result = check_running_containers(&has_containers_mock, true).await;
         if running_containers_result.is_err() {
             panic!(
                 "Errors getting running containers: {:?}",
@@ -234,6 +239,29 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn check_running_containers_without_health_info() {
+        let mut has_containers_mock = MockHasContainers::new();
+        let filter = hashmap!["status" => vec!["running"], "health" => vec!["unhealthy", "starting"]];
+        has_containers_mock
+            .expect_list_containers()
+            .withf(move |options| {
+                let opt = options.as_ref().unwrap();
+                opt.all && opt.filters == filter
+            })
+            .times(1)
+            .returning(|_| Ok(vec![]));
+        let running_containers_result = check_running_containers(&has_containers_mock, false).await;
+        if running_containers_result.is_err() {
+            panic!(
+                "Errors getting running containers: {:?}",
+                running_containers_result.err().unwrap()
+            );
+        }
+        let running_containers = running_containers_result.unwrap();
+        assert_eq!(running_containers, vec![]);
     }
 
     #[tokio::test]

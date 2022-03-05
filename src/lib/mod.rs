@@ -21,7 +21,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     info!("Args are {:?}.", args);
     let docker = Docker::connect_with_socket_defaults().unwrap();
     let containers = Containers::new(docker);
-    let running_containers = containers::check_running_containers(&containers).await?;
+    let running_containers = containers::check_running_containers(&containers, args.report_no_health).await?;
     warn!("Running containers: {:?}", running_containers);
     let stopped_containers = containers::check_not_running_containers(&containers, &args.label).await?;
     warn!("Stopped containers: {:?}", stopped_containers);
@@ -31,10 +31,15 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             print::stopped_containers(stopped_containers);
         }
         Command::NotifyTeams { callback_url } => {
-            Webhook::new(Some(msteams::format_message)).notify(callback_url, running_containers, stopped_containers)?;
+            Webhook::new(Some(msteams::format_message)).notify(
+                callback_url,
+                running_containers,
+                stopped_containers,
+                args.hostname,
+            )?;
         }
         Command::NotifyWebhook { callback_url } => {
-            Webhook::default().notify(callback_url, running_containers, stopped_containers)?;
+            Webhook::default().notify(callback_url, running_containers, stopped_containers, args.hostname)?;
         }
     }
     Ok(())

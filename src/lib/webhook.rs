@@ -23,6 +23,7 @@ impl SendsHttp for MyHttpClient {
 pub type FormatMessageType = fn(
     running_containers: &[RunningContainerStatus],
     stopped_containers: &[StoppedContainerStatus],
+    hostname: Option<String>,
 ) -> Result<Vec<u8>, serde_json::Error>;
 
 pub struct Webhook {
@@ -56,14 +57,16 @@ impl Webhook {
         url: &str,
         running_containers: Vec<RunningContainerStatus>,
         stopped_containers: Vec<StoppedContainerStatus>,
+        hostname: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let body_bytes = if let Some(message_formatter) = &self.message_formatter {
-            message_formatter(&running_containers, &stopped_containers)?
+            message_formatter(&running_containers, &stopped_containers, hostname)?
         } else {
             serde_json::to_vec(
                 &(WebHookNotifyBody {
                     running_containers,
                     stopped_containers,
+                    hostname,
                 }),
             )?
         };
@@ -86,11 +89,14 @@ impl Webhook {
 pub struct WebHookNotifyBody {
     pub running_containers: Vec<RunningContainerStatus>,
     pub stopped_containers: Vec<StoppedContainerStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hostname: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bollard::models::HealthStatusEnum;
     use isahc::{Body, Response};
 
     #[tokio::test]
@@ -116,6 +122,7 @@ mod tests {
                         == WebHookNotifyBody {
                             running_containers: rc.clone(),
                             stopped_containers: sc.clone(),
+                            hostname: None,
                         }
             })
             .times(1)
@@ -124,6 +131,56 @@ mod tests {
             http_client: Box::new(client),
             message_formatter: None,
         };
-        webhook.notify(URL, running_containers, stopped_containers).unwrap();
+        webhook
+            .notify(URL, running_containers, stopped_containers, None)
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn check_webhook_notify_with_host() {
+        let mut client = MockSendsHttp::new();
+        const URL: &str = "http://localhost:8080/";
+        let running_containers = vec![
+            RunningContainerStatus {
+                name: "test1".to_string(),
+                health: None,
+            },
+            RunningContainerStatus {
+                name: "test3".to_string(),
+                health: Some(HealthStatusEnum::UNHEALTHY),
+            },
+        ];
+        let stopped_containers = vec![StoppedContainerStatus {
+            name: "test2".to_string(),
+            status: Some("exited".to_string()),
+        }];
+        let rc = running_containers.clone();
+        let sc = stopped_containers.clone();
+        client
+            .expect_send()
+            .withf(move |req| {
+                *req.uri() == URL
+                    && req.method() == "POST"
+                    && serde_json::from_slice::<WebHookNotifyBody>(req.body()).unwrap()
+                        == WebHookNotifyBody {
+                            running_containers: rc.clone(),
+                            stopped_containers: sc.clone(),
+                            hostname: Some("myhostname".to_owned()),
+                        }
+            })
+            .times(1)
+            .return_once(|_| Ok(Response::builder().status(200).body(Body::from("")).unwrap()));
+        let webhook = Webhook {
+            http_client: Box::new(client),
+            message_formatter: None,
+        };
+        webhook
+            .notify(
+                URL,
+                running_containers,
+                stopped_containers,
+                Some("myhostname".to_owned()),
+            )
+            .unwrap();
     }
 }

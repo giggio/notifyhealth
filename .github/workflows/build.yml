@@ -90,13 +90,13 @@ jobs:
         name: Build app
         with:
           command: build
-          args: --release --target ${{ matrix.target }}
+          args: --release --target ${{ matrix.target }} ${{ matrix.os == 'linux' && '--features openssl' || '' }}
           use-cross: ${{ matrix.os == 'linux' }}
       - uses: actions-rs/cargo@v1
         name: Test app
         with:
           command: test
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.os == 'linux' && '--features openssl' || '' }}
           use-cross: ${{ matrix.os == 'linux' }}
       - name: Upload binaries
         uses: actions/upload-artifact@v2

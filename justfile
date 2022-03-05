@@ -30,13 +30,13 @@ build_release:
     cargo build --release
 
 build_linux_amd64:
-    cross build --release --target {{ amd64_target }}
+    cross build --release --target {{ amd64_target }} --features openssl
 
 docker_build_linux_amd64: (_docker_build_linux amd64_target "linux_amd64" "linux/amd64")
 release_linux_amd64: build_linux_amd64 docker_build_linux_amd64 (_release "linux_amd64")
 
 build_linux_armv7:
-    cross build --release --target {{ arm32v7_target }}
+    cross build --release --target {{ arm32v7_target }} --features openssl
 
 docker_build_linux_armv7: (_docker_build_linux arm32v7_target "linux_arm32v7" "linux/arm/v7")
 

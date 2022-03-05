@@ -6,7 +6,7 @@ use notifyhealth::{
 use serde_json::json;
 #[tokio::test]
 async fn check_webhook_notify() {
-    let webhook = Webhook::shared();
+    let webhook = Webhook::default();
     let running_containers = vec![RunningContainerStatus {
         name: "test1".to_string(),
         health: None,

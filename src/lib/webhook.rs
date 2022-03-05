@@ -1,9 +1,10 @@
 use super::containers::{RunningContainerStatus, StoppedContainerStatus};
 use isahc::{Body, Error, HttpClient, Request, Response};
-use lazy_static::lazy_static;
+use log::*;
 #[cfg(test)]
 use mockall::automock;
 use serde::{Deserialize, Serialize};
+use std::io::Read;
 
 pub struct MyHttpClient {
     pub client: HttpClient,
@@ -19,20 +20,35 @@ impl SendsHttp for MyHttpClient {
     }
 }
 
+pub type FormatMessageType = fn(
+    running_containers: &[RunningContainerStatus],
+    stopped_containers: &[StoppedContainerStatus],
+) -> Result<Vec<u8>, serde_json::Error>;
+
 pub struct Webhook {
     http_client: Box<dyn SendsHttp + Sync>,
+    message_formatter: Option<FormatMessageType>,
 }
 
-lazy_static! {
-    static ref WEBHOOK: Webhook = Webhook {
-        http_client: Box::new(MyHttpClient {
-            client: HttpClient::new().expect("shared client failed to initialize")
-        }),
-    };
+impl Default for Webhook {
+    fn default() -> Self {
+        Webhook {
+            http_client: Box::new(MyHttpClient {
+                client: HttpClient::new().expect("shared client failed to initialize"),
+            }),
+            message_formatter: None,
+        }
+    }
 }
+
 impl Webhook {
-    pub fn shared() -> &'static Self {
-        &WEBHOOK
+    pub fn new(message_formatter: Option<FormatMessageType>) -> Self {
+        Webhook {
+            http_client: Box::new(MyHttpClient {
+                client: HttpClient::new().expect("shared client failed to initialize"),
+            }),
+            message_formatter,
+        }
     }
 
     pub fn notify(
@@ -41,16 +57,26 @@ impl Webhook {
         running_containers: Vec<RunningContainerStatus>,
         stopped_containers: Vec<StoppedContainerStatus>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let body = WebHookNotifyBody {
-            running_containers,
-            stopped_containers,
+        let body_bytes = if let Some(message_formatter) = &self.message_formatter {
+            message_formatter(&running_containers, &stopped_containers)?
+        } else {
+            serde_json::to_vec(
+                &(WebHookNotifyBody {
+                    running_containers,
+                    stopped_containers,
+                }),
+            )?
         };
         let req = Request::post(url)
             .header("content-type", "application/json")
-            .body(serde_json::to_vec(&body)?)?;
-        let res = self.http_client.send(req)?;
+            .body(body_bytes)?;
+        let mut res = self.http_client.send(req)?;
+        let mut body = String::new();
+        res.body_mut().read_to_string(&mut body)?;
         if !res.status().is_success() {
-            return Err(format!("Error: status code: {status}", status = res.status()).into());
+            return Err(format!("Error: status code: {status}. Body: {body}", status = res.status()).into());
+        } else {
+            info!("Response: status code: {status}. Body: {body}", status = res.status());
         }
         Ok(())
     }
@@ -96,6 +122,7 @@ mod tests {
             .return_once(|_| Ok(Response::builder().status(200).body(Body::from("")).unwrap()));
         let webhook = Webhook {
             http_client: Box::new(client),
+            message_formatter: None,
         };
         webhook.notify(URL, running_containers, stopped_containers).unwrap();
     }

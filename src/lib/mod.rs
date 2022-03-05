@@ -3,12 +3,13 @@
 mod macros;
 pub mod args;
 pub mod containers;
+pub mod msteams;
 pub mod print;
 pub mod webhook;
 use args::*;
 use bollard::Docker;
 use containers::Containers;
-use log::info;
+use log::{info, warn};
 use log::{Level, LevelFilter};
 use webhook::Webhook;
 
@@ -18,22 +19,22 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::new().filter_level(level).init();
     info!("Log level: {level}");
     info!("Args are {:?}.", args);
+    let docker = Docker::connect_with_socket_defaults().unwrap();
+    let containers = Containers::new(docker);
+    let running_containers = containers::check_running_containers(&containers).await?;
+    warn!("Running containers: {:?}", running_containers);
+    let stopped_containers = containers::check_not_running_containers(&containers, &args.label).await?;
+    warn!("Stopped containers: {:?}", stopped_containers);
     match &args.command {
         Command::Print {} => {
-            let docker = Docker::connect_with_socket_defaults().unwrap();
-            let containers = Containers::new(docker);
-            let running_containers = containers::check_running_containers(&containers).await?;
             print::running_containers(running_containers);
-            let stopped_containers = containers::check_not_running_containers(&containers, &args.label).await?;
             print::stopped_containers(stopped_containers);
         }
-        Command::NotifyTeams { .. } => println!("Not implemented."),
+        Command::NotifyTeams { callback_url } => {
+            Webhook::new(Some(msteams::format_message)).notify(callback_url, running_containers, stopped_containers)?;
+        }
         Command::NotifyWebhook { callback_url } => {
-            let docker = Docker::connect_with_socket_defaults().unwrap();
-            let containers = Containers::new(docker);
-            let running_containers = containers::check_running_containers(&containers).await?;
-            let stopped_containers = containers::check_not_running_containers(&containers, &args.label).await?;
-            Webhook::shared().notify(callback_url, running_containers, stopped_containers)?;
+            Webhook::default().notify(callback_url, running_containers, stopped_containers)?;
         }
     }
     Ok(())

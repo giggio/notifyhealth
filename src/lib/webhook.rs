@@ -59,6 +59,9 @@ impl Webhook {
         stopped_containers: Vec<StoppedContainerStatus>,
         hostname: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if (running_containers.len() + stopped_containers.len()) == 0 {
+            return Ok(());
+        }
         let body_bytes = if let Some(message_formatter) = &self.message_formatter {
             message_formatter(&running_containers, &stopped_containers, hostname)?
         } else {
@@ -181,6 +184,21 @@ mod tests {
                 stopped_containers,
                 Some("myhostname".to_owned()),
             )
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn when_there_is_no_problem_do_not_notify() {
+        let client = MockSendsHttp::new();
+        const URL: &str = "http://localhost:8080/";
+        let running_containers = vec![];
+        let stopped_containers = vec![];
+        let webhook = Webhook {
+            http_client: Box::new(client),
+            message_formatter: None,
+        };
+        webhook
+            .notify(URL, running_containers, stopped_containers, None)
             .unwrap();
     }
 }

@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
+FROM mcr.microsoft.com/windows/nanoserver:10.0.17763.2565
 LABEL maintainer="giggio@giggio.net"
 ENTRYPOINT [ "c:/notifyhealth" ]
 COPY target/output/notifyhealth.exe .

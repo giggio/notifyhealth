@@ -2,7 +2,7 @@
 use async_trait::async_trait;
 use bollard::container::{InspectContainerOptions, ListContainersOptions};
 use bollard::errors::Error;
-use bollard::models::{ContainerInspectResponse, ContainerSummaryInner, HealthStatusEnum};
+use bollard::models::{ContainerInspectResponse, ContainerSummary, HealthStatusEnum};
 use futures_util::Future;
 #[cfg(test)]
 use mockall::automock;
@@ -22,7 +22,7 @@ pub trait HasContainers {
     async fn list_containers<'a>(
         &'a self,
         options: Option<ListContainersOptions<&'a str>>,
-    ) -> Result<Vec<ContainerSummaryInner>, Error>;
+    ) -> Result<Vec<ContainerSummary>, Error>;
     async fn inspect_container<'a>(
         &'a self,
         container_name: &'a str,
@@ -41,7 +41,7 @@ impl HasContainers for Containers {
     async fn list_containers<'a>(
         &'a self,
         options: Option<ListContainersOptions<&'a str>>,
-    ) -> Result<Vec<ContainerSummaryInner>, Error> {
+    ) -> Result<Vec<ContainerSummary>, Error> {
         self.docker.list_containers(options).await
     }
     fn inspect_container<'a, 'async_trait>(
@@ -125,7 +125,7 @@ pub async fn check_not_running_containers(
         .collect())
 }
 
-fn get_container_name(container: &ContainerSummaryInner) -> &str {
+fn get_container_name(container: &ContainerSummary) -> &str {
     match &container.names {
         Some(names) => {
             let name = names.first().unwrap();
@@ -158,15 +158,15 @@ mod tests {
             .times(1)
             .returning(|_| {
                 Ok(vec![
-                    ContainerSummaryInner {
+                    ContainerSummary {
                         names: Some(vec!["/test_container".to_string()]),
                         ..Default::default()
                     },
-                    ContainerSummaryInner {
+                    ContainerSummary {
                         names: Some(vec!["/test_container2".to_string()]),
                         ..Default::default()
                     },
-                    ContainerSummaryInner {
+                    ContainerSummary {
                         names: Some(vec!["/test_container3".to_string()]),
                         ..Default::default()
                     },
@@ -277,7 +277,7 @@ mod tests {
             })
             .times(1)
             .returning(|_| {
-                Ok(vec![ContainerSummaryInner {
+                Ok(vec![ContainerSummary {
                     names: Some(vec!["/test_container".to_string()]),
                     state: Some("stopped".to_owned()),
                     ..Default::default()

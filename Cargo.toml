@@ -1,6 +1,6 @@
 [package]
 name = "notifyhealth"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Giovanni Bassi <giggio@giggio.net>"]
 
@@ -20,10 +20,10 @@ lto = true
 
 [dependencies]
 async-trait = "0.1"
-bollard = "0.11"
-clap = { version = "3.1", features = ["derive"] }
-clap-verbosity-flag = "1.0"
-env_logger = "0.9"
+bollard = "0.14.0"
+clap = { version = "3.2.23", features = ["derive"] }
+clap-verbosity-flag = "1.0.1"
+env_logger = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
 isahc = { version = "1.6", features = ["json"] }
@@ -41,5 +41,5 @@ tokio = { version = "1.17", features = ["full"] }
 
 [dev-dependencies]
 mockall = "0.11"
-mockito = "0.31"
+mockito = "1.0.2"
 pretty_assertions = "1.1"

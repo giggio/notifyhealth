@@ -15,14 +15,15 @@ async fn check_webhook_notify() {
         name: "test2".to_string(),
         status: Some("exited".to_string()),
     }];
-    let url = &mockito::server_url();
-    let mock = mockito::mock("POST", "/")
+    let mut server = mockito::Server::new();
+    let url = server.url();
+    let mock = server.mock("POST", "/")
         .match_body(Matcher::Json(json!({"running_containers": [{"name": "test1"}], "stopped_containers": [{"name": "test2", "status": "exited"}]})))
         .match_header("content-type", "application/json")
         .with_status(201)
         .create();
     webhook
-        .notify(url, running_containers, stopped_containers, None)
+        .notify(&url, running_containers, stopped_containers, None)
         .unwrap();
     mock.assert();
 }

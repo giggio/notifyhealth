@@ -1,9 +1,8 @@
 use log::error;
-mod lib;
 
 #[tokio::main]
 async fn main() {
-    if let Err(err) = lib::run().await {
+    if let Err(err) = notifyhealth::run().await {
         error!("{}", err);
         std::process::exit(1);
     }

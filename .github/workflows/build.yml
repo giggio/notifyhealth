@@ -68,24 +68,21 @@ jobs:
             runner: windows-2019
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
           components: clippy, rustfmt
       - uses: actions-rs/cargo@v1
         name: Check format
+        if: matrix.tag == 'linux_amd64'
         with:
           command: fmt
           args: --all --check
-          use-cross: ${{ matrix.os == 'linux' }}
+          use-cross: true
       - name: Check clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
-          use-cross: ${{ matrix.os == 'linux' }}
+        if: matrix.tag == 'linux_amd64'
+        run: cross clippy --all-features --target ${{ matrix.target }}
       - uses: actions-rs/cargo@v1
         name: Build app
         with:

@@ -21,8 +21,8 @@ lto = true
 [dependencies]
 async-trait = "0.1"
 bollard = "0.14.0"
-clap = { version = "3.2.23", features = ["derive"] }
-clap-verbosity-flag = "1.0.1"
+clap = { version = "4.2.1", features = ["derive"] }
+clap-verbosity-flag = "2.0.1"
 env_logger = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"

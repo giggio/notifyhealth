@@ -10,7 +10,7 @@ pub struct Args {
         required = true
     )]
     pub label: String,
-    #[clap(short, long, help = "Host name of docker host")]
+    #[clap(long, help = "Host name of docker host")]
     pub hostname: Option<String>,
     #[clap(short, long, help = "Include running containers which have no health check")]
     pub report_no_health: bool,
@@ -24,19 +24,58 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    #[clap(about = "Calls an executable.")]
+    Exec {
+        // #[command(flatten)]
+        // exec_args: ExecArgs,
+        #[arg(short, long, help = "Executable to call for running or stopped containers")]
+        exec: Option<String>,
+        #[arg(
+            conflicts_with = "exec",
+            short = 'r',
+            long,
+            help = "Executable to call for running containers"
+        )]
+        exec_running: Option<String>,
+        #[arg(
+            conflicts_with = "exec",
+            short = 's',
+            long,
+            help = "Executable to call for stopped containers"
+        )]
+        exec_stopped: Option<String>,
+    },
     #[clap(about = "Prints the status to stdout.")]
     Print {},
     #[clap(about = "Sends a notification through Microsoft Teams")]
     NotifyTeams {
-        #[clap(short, long, help = "Teams callback url")]
+        #[arg(short, long, help = "Teams callback url")]
         callback_url: String,
     },
     #[clap(about = "Sends a notification through a webhook")]
     NotifyWebhook {
-        #[clap(short, long, help = "Webhook url")]
+        #[arg(short, long, help = "Webhook url")]
         callback_url: String,
     },
 }
+
+// #[derive(clap::Args, Debug)]
+// #[group(multiple = false)]
+// pub struct ExecArgs {
+//     #[arg(short, long, help = "Executable to call for running or stopped containers")]
+//     pub exec: Option<String>,
+//     #[command(flatten)]
+//     pub exec_separated: ExecSeparated,
+// }
+
+// #[derive(clap::Args, Debug)]
+// #[group(multiple = true)]
+// pub struct ExecSeparated {
+//     #[arg(short = 'r', long, help = "Executable to call for running containers")]
+//     pub exec_running: Option<String>,
+//     #[arg(short = 's', long, help = "Executable to call for stopped containers")]
+//     pub exec_stopped: Option<String>,
+// }
 
 impl Args {
     pub fn new() -> Args {
@@ -68,6 +107,7 @@ mod tests {
         match args.command {
             Command::NotifyTeams { .. } => panic!("Should not be notify teams"),
             Command::NotifyWebhook { .. } => panic!("Should not notify webhook"),
+            Command::Exec { .. } => panic!("Should not exec"),
             Command::Print {} => (),
         };
         assert_eq!("foo", args.label);

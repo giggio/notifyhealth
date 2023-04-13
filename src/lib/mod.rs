@@ -3,11 +3,13 @@
 mod macros;
 pub mod args;
 pub mod containers;
+pub mod exec;
 pub mod msteams;
 pub mod print;
 pub mod webhook;
 use args::*;
 use bollard::Docker;
+use clap::CommandFactory;
 use containers::Containers;
 use log::{info, warn};
 use log::{Level, LevelFilter};
@@ -26,6 +28,40 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let stopped_containers = containers::check_not_running_containers(&containers, &args.label).await?;
     warn!("Stopped containers: {:?}", stopped_containers);
     match &args.command {
+        // Command::Exec { exec_args } => {
+        //     if let Some(exec) = &exec_args.exec {
+        //         exec::running_containers(exec, running_containers);
+        //         exec::stopped_containers(exec, stopped_containers);
+        //     } else {
+        //         if let Some(exec_running) = &exec_args.exec_separated.exec_running {
+        //             exec::running_containers(exec_running, running_containers);
+        //         }
+        //         if let Some(exec_stopped) = &exec_args.exec_separated.exec_stopped {
+        //             exec::stopped_containers(exec_stopped, stopped_containers);
+        //         }
+        //     }
+        // }
+        Command::Exec {
+            exec_running,
+            exec_stopped,
+            exec,
+        } => {
+            if let Some(exec) = exec {
+                exec::running_containers(exec, running_containers);
+                exec::stopped_containers(exec, stopped_containers);
+            } else if let Some(exec_running) = exec_running {
+                exec::running_containers(exec_running, running_containers);
+            } else if let Some(exec_stopped) = exec_stopped {
+                exec::stopped_containers(exec_stopped, stopped_containers);
+            } else {
+                let mut cmd = args::Args::command();
+                cmd.error(
+                    clap::error::ErrorKind::MissingRequiredArgument,
+                    "No exec command specified",
+                )
+                .exit();
+            }
+        }
         Command::Print {} => {
             print::running_containers(running_containers);
             print::stopped_containers(stopped_containers);

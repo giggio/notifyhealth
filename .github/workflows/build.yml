@@ -73,7 +73,7 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
           components: clippy, rustfmt
-      - uses: actions-rs/cargo@v1
+      - uses: richb-hanover/cargo@v1.1.0
         name: Check format
         if: matrix.tag == 'linux_amd64'
         with:
@@ -83,13 +83,13 @@ jobs:
       - name: Check clippy
         if: matrix.tag == 'linux_amd64'
         run: cross clippy --all-features --target ${{ matrix.target }}
-      - uses: actions-rs/cargo@v1
+      - uses: richb-hanover/cargo@v1.1.0
         name: Build app
         with:
           command: build
           args: --release --target ${{ matrix.target }} ${{ matrix.os == 'linux' && '--features openssl' || '' }}
           use-cross: ${{ matrix.os == 'linux' }}
-      - uses: actions-rs/cargo@v1
+      - uses: richb-hanover/cargo@v1.1.0
         name: Test app
         with:
           command: test
@@ -137,10 +137,10 @@ jobs:
       - run: chmod +x target/output/${{ env.BINARY }}
         if: matrix.os == 'linux'
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
       - name: Extract metadata (tags, labels) for Docker
         id: meta_docker
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           images: ${{ needs.get_data.outputs.base_image }}
           flavor: |
@@ -149,15 +149,15 @@ jobs:
             type=raw,value=${{ needs.get_data.outputs.version }}-${{ matrix.tag }},enable=true
             type=raw,value=${{ matrix.tag }},enable=true
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
         if: matrix.target == 'armv7-unknown-linux-musleabihf'
       - name: Build and push docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: ${{ matrix.os == 'windows' && 'Dockerfile.windows' || 'Dockerfile' }}
@@ -178,19 +178,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Release multiarch image to Docker Hub
         run: |
-          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create ${{ needs.get_data.outputs.base_image }}:latest \
-              --amend ${{ needs.get_data.outputs.base_image }}:${{ env.AMD64_TAG }} \
-              --amend ${{ needs.get_data.outputs.base_image }}:${{ env.WIN64_TAG }} \
-              --amend ${{ needs.get_data.outputs.base_image }}:${{ env.ARM32V7_TAG }}
-          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push ${{ needs.get_data.outputs.base_image }}:latest
-          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }} \
-              --amend ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.AMD64_TAG }} \
-              --amend ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.WIN64_TAG }} \
-              --amend ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.ARM32V7_TAG }}
-          DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}
+          docker buildx imagetools create -t ${{ needs.get_data.outputs.base_image }}:latest \
+            ${{ needs.get_data.outputs.base_image }}:${{ env.AMD64_TAG }} \
+            ${{ needs.get_data.outputs.base_image }}:${{ env.WIN64_TAG }} \
+            ${{ needs.get_data.outputs.base_image }}:${{ env.ARM32V7_TAG }}
+          docker buildx imagetools create -t ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }} \
+            ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.AMD64_TAG }} \
+            ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.WIN64_TAG }} \
+            ${{ needs.get_data.outputs.base_image }}:${{ needs.get_data.outputs.version }}-${{ env.ARM32V7_TAG }}

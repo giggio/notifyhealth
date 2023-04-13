@@ -33,18 +33,18 @@ jobs:
       version: ${{ steps.get-version.outputs.version }}
       base_image: ${{ steps.set-variables.outputs.base_image }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Get current version
         id: get-version
         run: |
           curl -fsSL --output ./stoml "https://github.com/freshautomations/stoml/releases/download/v0.7.0/stoml_linux_amd64"
           chmod +x stoml
           VERSION=`./stoml Cargo.toml package.version`
-          echo "::set-output name=version::$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Set nested variables
         id: set-variables
         run: |
-          echo "::set-output name=base_image::giggio/${{ env.BINARY }}"
+          echo "base_image=giggio/${{ env.BINARY }}" >> $GITHUB_OUTPUT
 
   build:
     name: Build application
@@ -67,7 +67,7 @@ jobs:
             os: windows
             runner: windows-2019
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -131,7 +131,7 @@ jobs:
             os: windows
             runner: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Download binaries
         uses: actions/download-artifact@v2
         with:
@@ -179,7 +179,7 @@ jobs:
       ARM32V7_TAG: linux_arm32v7
       WIN64_TAG: windows_amd64
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
